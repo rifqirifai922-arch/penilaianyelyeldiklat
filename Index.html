@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aplikasi Penilaian Lomba Yel-Yel RT.01 - RT.07</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- jsPDF & html2canvas Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    body {
+      background-color: #0d0d0d;
+      color: #f3f4f6;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .bg-crimson { background-color: #dc2626; }
+    .border-crimson { border-color: #dc2626; }
+    .text-crimson { color: #ef4444; }
+    .card-dark {
+      background-color: #1a1a1a;
+      border: 1px solid #333333;
+    }
+    .preset-btn {
+      transition: all 0.2s ease;
+    }
+    .preset-btn:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body class="pb-12">
+
+  <!-- Header -->
+  <header class="bg-black border-b-4 border-crimson py-4 px-6 shadow-lg mb-6 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <i class="fa-solid fa-trophy text-3xl text-crimson"></i>
+        <div>
+          <h1 class="text-xl font-bold tracking-wide uppercase text-white">Lomba Yel-Yel Antar RT</h1>
+          <p class="text-xs text-gray-400">Sistem Penilaian Digital Realtime (RT.01 - RT.07)</p>
+        </div>
+      </div>
+      
+      <!-- Pilih Perangkat / Juri -->
+      <div class="flex items-center gap-2 bg-neutral-900 p-2 rounded-lg border border-neutral-700">
+        <label for="juriSelect" class="text-xs font-semibold text-gray-300">Akses Perangkat:</label>
+        <select id="juriSelect" onchange="switchJuri()" class="bg-neutral-800 text-white text-sm px-3 py-1 rounded border border-red-600 focus:outline-none focus:ring-2 focus:ring-red-500">
+          <option value="1">Juri 1</option>
+          <option value="2">Juri 2</option>
+          <option value="3">Juri 3</option>
+          <option value="admin">Rekap & Peringkat (Panitia)</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4">
+
+    <!-- TAB PANEL JURI -->
+    <div id="juriPanel" class="space-y-6">
+      
+      <!-- Pilihan Peserta RT -->
+      <div class="card-dark p-4 rounded-xl shadow-md">
+        <label class="block text-sm font-semibold mb-2 text-gray-300">Pilih Peserta Tampil:</label>
+        <div class="grid grid-cols-4 sm:grid-cols-7 gap-2" id="rtButtonContainer">
+          <!-- Tombol RT 01 - 07 di-generate via JS -->
+        </div>
+      </div>
+
+      <!-- Form Input Nilai Kategori -->
+      <div class="card-dark p-6 rounded-xl shadow-md border-t-2 border-red-600">
+        <div class="flex justify-between items-center mb-6 pb-2 border-b border-neutral-800">
+          <div>
+            <span id="currentJuriBadge" class="bg-red-700 text-white text-xs px-2 py-1 rounded font-bold uppercase">JURI 1</span>
+            <h2 id="currentPesertaTitle" class="text-2xl font-black text-white mt-1">RT.01</h2>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-gray-400">Total Nilai Juri Ini</span>
+            <div id="subtotalJuri" class="text-3xl font-black text-crimson">0</div>
+          </div>
+        </div>
+
+        <div id="criteriaContainer" class="space-y-6">
+          <!-- Kriteria Penilaian di-generate melalui JS -->
+        </div>
+
+        <div class="mt-8 flex justify-end">
+          <button onclick="simpanNilaiJuri()" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg flex items-center justify-center gap-2 transition duration-200">
+            <i class="fa-solid fa-floppy-disk"></i> Simpan Nilai RT Ini
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB PANEL REKAP & PERINGKAT (PANITIA) -->
+    <div id="adminPanel" class="space-y-6 hidden">
+      <div class="flex justify-between items-center bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+        <div>
+          <h2 class="text-xl font-bold text-white"><i class="fa-solid fa-chart-line text-crimson mr-2"></i>Rekapitulasi Nilai Realtime</h2>
+          <p class="text-xs text-gray-400">Nilai dari Juri 1, Juri 2, dan Juri 3 terakumulasi secara otomatis.</p>
+        </div>
+        <button onclick="downloadPDF()" class="bg-white hover:bg-gray-200 text-black font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 shadow">
+          <i class="fa-solid fa-file-pdf text-red-600"></i> Download Rekap PDF
+        </button>
+      </div>
+
+      <!-- Tabel Rekap -->
+      <div id="pdfContent" class="bg-black p-4 rounded-xl border border-neutral-800">
+        <div class="text-center mb-4 hidden print-header">
+          <h2 class="text-2xl font-bold text-black">HASIL REKAPITULASI LOMBA YEL-YEL</h2>
+          <p class="text-sm text-gray-700">Peringkat & Perolehan Nilai Akhir (RT.01 - RT.07)</p>
+          <hr class="my-2 border-black">
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr class="bg-neutral-900 text-gray-300 border-b border-neutral-700 uppercase text-xs">
+                <th class="p-3">Peringkat</th>
+                <th class="p-3">Peserta</th>
+                <th class="p-3 text-center">Juri 1</th>
+                <th class="p-3 text-center">Juri 2</th>
+                <th class="p-3 text-center">Juri 3</th>
+                <th class="p-3 text-center bg-red-950 text-white font-bold">Total Nilai</th>
+                <th class="p-3 text-center">Rata-Rata</th>
+              </tr>
+            </thead>
+            <tbody id="rekapTableBody" class="divide-y divide-neutral-800">
+              <!-- Data Rekap di-generate melalui JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // ----------------------------------------------------
+    // 1. KONFIGURASI KRITERIA & PESERTA
+    // ----------------------------------------------------
+    const kriteriaList = [
+      "Kekompakan & Sinkronisasi",
+      "Kreativitas & Keunikan",
+      "Semangat & Ekspresi",
+      "Vokal & Kejelasan",
+      "Gerakan & Koreografi",
+      "Kepemimpinan/Pemandu Yel-Yel",
+      "Penguasaan Panggung & Formasi"
+    ];
+
+    const daftarRT = ["RT.01", "RT.02", "RT.03", "RT.04", "RT.05", "RT.06", "RT.07"];
+    
+    // Opsi preset nilai otomatis (Max 100 per kategori)
+    const presetNilai = [
+      { label: "Kurang", val: 60, color: "bg-neutral-800 hover:bg-neutral-700 text-gray-300" },
+      { label: "Cukup", val: 75, color: "bg-amber-900 hover:bg-amber-800 text-amber-200" },
+      { label: "Baik", val: 88, color: "bg-blue-900 hover:bg-blue-800 text-blue-200" },
+      { label: "Sangat Baik", val: 98, color: "bg-red-900 hover:bg-red-800 text-red-200" }
+    ];
+
+    let currentJuri = "1";
+    let currentPeserta = "RT.01";
+    
+    // Structure Data Lokal (Digunakan sebagai fallback / sinkronisasi)
+    let scoreData = {};
+    daftarRT.forEach(rt => {
+      scoreData[rt] = {
+        juri1: {},
+        juri2: {},
+        juri3: {}
+      };
+      kriteriaList.forEach(k => {
+        scoreData[rt].juri1[k] = 0;
+        scoreData[rt].juri2[k] = 0;
+        scoreData[rt].juri3[k] = 0;
+      });
+    });
+
+    // ----------------------------------------------------
+    // 2. FIREBASE REALTIME SETUP (Untuk Multi-Device Sync)
+    // ----------------------------------------------------
+    // Silakan ganti firebaseConfig dibawah dengan config Firebase Anda
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
+    };
+
+    let useFirebase = false;
+    let dbRef = null;
+
+    try {
+      if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+        firebase.initializeApp(firebaseConfig);
+        dbRef = firebase.database().ref('penilaian_yel_yel');
+        useFirebase = true;
+        
+        // Listen perubahan data realtime
+        dbRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            scoreData = data;
+            renderForm();
+            renderRekap();
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Firebase belum dikonfigurasi, menggunakan LocalStorage mode.", e);
+    }
+
+    // Backup / Load LocalStorage jika Firebase tidak aktif
+    function loadLocalData() {
+      const saved = localStorage.getItem('scoreDataYelYel');
+      if (saved) {
+        scoreData = JSON.parse(saved);
+      }
+    }
+
+    function saveLocalData() {
+      localStorage.setItem('scoreDataYelYel', JSON.stringify(scoreData));
+      if (useFirebase && dbRef) {
+        dbRef.set(scoreData);
+      }
+    }
+
+    // ----------------------------------------------------
+    // 3. RENDER UI & INTERAKSI
+    // ----------------------------------------------------
+    function initUI() {
+      loadLocalData();
+      renderRTButtons();
+      renderForm();
+      renderRekap();
+    }
+
+    function switchJuri() {
+      currentJuri = document.getElementById("juriSelect").value;
+      const juriPanel = document.getElementById("juriPanel");
+      const adminPanel = document.getElementById("adminPanel");
+
+      if (currentJuri === "admin") {
+        juriPanel.classList.add("hidden");
+        adminPanel.classList.remove("hidden");
+        renderRekap();
+      } else {
+        juriPanel.classList.remove("hidden");
+        adminPanel.classList.add("hidden");
+        document.getElementById("currentJuriBadge").innerText = "JURI " + currentJuri;
+        renderForm();
+      }
+    }
+
+    function renderRTButtons() {
+      const container = document.getElementById("rtButtonContainer");
+      container.innerHTML = "";
+      daftarRT.forEach(rt => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        const isActive = rt === currentPeserta;
+        btn.className = `py-2 px-3 rounded-lg text-sm font-bold border transition ${
+          isActive 
+            ? "bg-red-600 border-red-500 text-white shadow-lg" 
+            : "bg-neutral-900 border-neutral-800 text-gray-400 hover:border-neutral-600"
+        }`;
+        btn.innerText = rt;
+        btn.onclick = () => {
+          currentPeserta = rt;
+          renderRTButtons();
+          renderForm();
+        };
+        container.appendChild(btn);
+      });
+      document.getElementById("currentPesertaTitle").innerText = currentPeserta;
+    }
+
+    function renderForm() {
+      document.getElementById("currentPesertaTitle").innerText = currentPeserta;
+      const container = document.getElementById("criteriaContainer");
+      container.innerHTML = "";
+
+      let subtotal = 0;
+      const juriKey = "juri" + currentJuri;
+
+      kriteriaList.forEach((kriteria, index) => {
+        const val = scoreData[currentPeserta][juriKey][kriteria] || 0;
+        subtotal += parseInt(val);
+
+        const card = document.createElement("div");
+        card.className = "p-4 bg-neutral-900 rounded-lg border border-neutral-800 space-y-3";
+
+        let presetButtonsHTML = "";
+        presetNilai.forEach(p => {
+          presetButtonsHTML += `
+            <button type="button" onclick="setNilai('${kriteria}', ${p.val})" 
+              class="text-xs py-1 px-2.5 rounded border border-neutral-700 preset-btn ${p.color}">
+              ${p.label} (${p.val})
+            </button>
+          `;
+        });
+
+        card.innerHTML = `
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span class="text-sm font-semibold text-gray-200">${index + 1}. ${kriteria}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400">Nilai:</span>
+              <input type="number" min="0" max="100" value="${val}" 
+                onchange="updateNilaiInput('${kriteria}', this.value)"
+                class="w-20 bg-black border border-red-600 text-red-400 font-bold text-center text-lg rounded py-1 focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-1.5 pt-1">
+            ${presetButtonsHTML}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      document.getElementById("subtotalJuri").innerText = subtotal;
+    }
+
+    function setNilai(kriteria, value) {
+      const juriKey = "juri" + currentJuri;
+      scoreData[currentPeserta][juriKey][kriteria] = parseInt(value);
+      renderForm();
+    }
+
+    function updateNilaiInput(kriteria, value) {
+      let v = parseInt(value) || 0;
+      if (v > 100) v = 100;
+      if (v < 0) v = 0;
+      const juriKey = "juri" + currentJuri;
+      scoreData[currentPeserta][juriKey][kriteria] = v;
+      renderForm();
+    }
+
+    function simpanNilaiJuri() {
+      saveLocalData();
+      alert(`Nilai ${currentPeserta} dari Juri ${currentJuri} berhasil disimpan!`);
+    }
+
+    // ----------------------------------------------------
+    // 4. REKAPITULASI & OTOMASI PERINGKAT
+    // ----------------------------------------------------
+    function getSumJuri(rt, juriNum) {
+      const juriKey = "juri" + juriNum;
+      const scores = scoreData[rt][juriKey];
+      return Object.values(scores).reduce((a, b) => (parseInt(a) || 0) + (parseInt(b) || 0), 0);
+    }
+
+    function renderRekap() {
+      const tbody = document.getElementById("rekapTableBody");
+      tbody.innerHTML = "";
+
+      // Hitung Total Seluruh Peserta
+      let rekapList = daftarRT.map(rt => {
+        const j1 = getSumJuri(rt, 1);
+        const j2 = getSumJuri(rt, 2);
+        const j3 = getSumJuri(rt, 3);
+        const total = j1 + j2 + j3;
+        const avg = (total / 3).toFixed(1);
+        return { rt, j1, j2, j3, total, avg };
+      });
+
+      // Urutkan berdasarkan Total Nilai Terbanyak (Peringkat)
+      rekapList.sort((a, b) => b.total - a.total);
+
+      rekapList.forEach((item, index) => {
+        const tr = document.createElement("tr");
+        tr.className = index % 2 === 0 ? "bg-neutral-900/50" : "bg-black";
+
+        // Badge Juara
+        let rankBadge = `<span class="font-bold text-gray-400">#${index + 1}</span>`;
+        if (index === 0) rankBadge = `<span class="bg-amber-500 text-black px-2 py-0.5 rounded font-black text-xs"><i class="fa-solid fa-crown mr-1"></i>JUARA 1</span>`;
+        if (index === 1) rankBadge = `<span class="bg-gray-300 text-black px-2 py-0.5 rounded font-black text-xs"><i class="fa-solid fa-medal mr-1"></i>JUARA 2</span>`;
+        if (index === 2) rankBadge = `<span class="bg-amber-800 text-white px-2 py-0.5 rounded font-black text-xs"><i class="fa-solid fa-award mr-1"></i>JUARA 3</span>`;
+
+        tr.innerHTML = `
+          <td class="p-3">${rankBadge}</td>
+          <td class="p-3 font-bold text-white">${item.rt}</td>
+          <td class="p-3 text-center text-gray-300">${item.j1}</td>
+          <td class="p-3 text-center text-gray-300">${item.j2}</td>
+          <td class="p-3 text-center text-gray-300">${item.j3}</td>
+          <td class="p-3 text-center font-black text-red-500 bg-red-950/30 text-base">${item.total}</td>
+          <td class="p-3 text-center text-gray-400">${item.avg}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ----------------------------------------------------
+    // 5. DOWNLOAD PDF REKAP
+    // ----------------------------------------------------
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const element = document.getElementById("pdfContent");
+
+      html2canvas(element, { scale: 2, backgroundColor: "#0d0d0d" }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const imgWidth = 190;
+        const pageHeight = 295;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+        pdf.save(`Rekap_Nilai_YelYel_RT_2026.pdf`);
+      });
+    }
+
+    // Inisialisasi awal
+    window.onload = initUI;
+  </script>
+</body>
+</html>
